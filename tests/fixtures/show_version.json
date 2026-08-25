@@ -1,0 +1,22 @@
+{
+  "title": "5.x",
+  "model": "Fixture Router (KN-0000)",
+  "hw_id": "KN-0000",
+  "arch": "mips",
+  "release": "5.x",
+  "sandbox": "stable",
+  "ndm": {
+    "exact": "0-00000000",
+    "cdate": "1 Jan 2026"
+  },
+  "ndw": {
+    "components": "base,cloudcontrol,wireguard",
+    "features": "wifi5ghz,wpa3"
+  },
+  "manufacturer": "Fixture Networks",
+  "series": "KN",
+  "hw_version": "10000000",
+  "hw_type": "router",
+  "region": "EA",
+  "future-field": true
+}

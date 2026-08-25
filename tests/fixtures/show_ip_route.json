@@ -1,0 +1,35 @@
+[
+  {
+    "destination": "0.0.0.0/0",
+    "gateway": "192.0.2.1",
+    "interface": "GigabitEthernet0/Vlan2",
+    "metric": 1000,
+    "flags": "UG",
+    "rejecting": false,
+    "proto": "boot",
+    "floating": true,
+    "static": false
+  },
+  {
+    "destination": "192.0.2.0/24",
+    "gateway": "0.0.0.0",
+    "interface": "Bridge0",
+    "metric": 0,
+    "flags": "U",
+    "rejecting": false,
+    "proto": "kernel",
+    "floating": false,
+    "static": false
+  },
+  {
+    "destination": "198.51.100.0/24",
+    "gateway": "192.0.2.254",
+    "interface": "Wireguard0",
+    "metric": 10,
+    "flags": "UX",
+    "rejecting": false,
+    "proto": "future-protocol",
+    "floating": false,
+    "static": true
+  }
+]

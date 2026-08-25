@@ -1,0 +1,38 @@
+{
+  "show": {
+    "interface": {
+      "id": "UsbLte0",
+      "index": 19,
+      "interface-name": "UsbLte0",
+      "type": "UsbLte",
+      "traits": ["Usb", "Mobile", "Ethernet", "Ip", "UsbLte"],
+      "link": "down",
+      "admin-only": false,
+      "summary": {
+        "layer": {
+          "conf": "running",
+          "link": "pending"
+        }
+      },
+      "plugged": "yes",
+      "connection-state": "",
+      "operator": "",
+      "apn": "",
+      "mobile": "",
+      "band": "",
+      "rssi": "",
+      "imei": "",
+      "imsi": "",
+      "iccid": "",
+      "phone-number": "",
+      "ati": {
+        "manufacturer": "Fixture Modems",
+        "model": "FM-2000",
+        "revision": "2.0"
+      },
+      "uim": {
+        "spn": ""
+      }
+    }
+  }
+}

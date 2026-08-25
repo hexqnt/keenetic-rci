@@ -1,0 +1,45 @@
+{
+  "pingcheck": [
+    {
+      "profile": "default",
+      "interface": {
+        "UsbLte0": {
+          "ignore-fail": false,
+          "successcount": 0,
+          "failcount": 0,
+          "status": "not ready"
+        }
+      }
+    },
+    {
+      "profile": "icmp-uplink",
+      "host": ["resolver.example"],
+      "update-interval": 10,
+      "max-fails": 5,
+      "mode": "icmp",
+      "interface": {
+        "GigabitEthernet0/Vlan2": {
+          "ignore-fail": false,
+          "successcount": 56,
+          "failcount": 0,
+          "status": "pass",
+          "ipcache": [
+            {
+              "host": "resolver.example",
+              "addresses": ["192.0.2.53", "2001:db8::53"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "profile": "tcp-uplink",
+      "host": ["198.51.100.10"],
+      "port": 443,
+      "timeout": 2,
+      "max-fails": 7,
+      "mode": "connect",
+      "interface": {}
+    }
+  ]
+}

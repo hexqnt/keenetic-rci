@@ -1,0 +1,5 @@
+[
+  {"ip": "192.0.2.10", "mac": "02:11:22:33:44:55", "interface": "Bridge0", "name": "Laptop", "state": "REACHABLE"},
+  {"ip": "192.0.2.11", "mac": "02:11:22:33:44:55", "interface": "Bridge0", "state": "STALE"},
+  {"ip": "192.0.2.30", "mac": "02:00:00:00:00:30", "interface": "Bridge0", "state": "FUTURE"}
+]

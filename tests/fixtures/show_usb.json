@@ -1,0 +1,21 @@
+{
+  "device": {
+    "UsbLte0": {
+      "DEVICE": "/devices/platform/usb/1-1:1.0",
+      "DEVPATH": "/devices/platform/usb/1-1:1.0/ttyUSB0",
+      "alias": "",
+      "no-led": "",
+      "port": "1",
+      "power-control": "yes",
+      "subsystem": "network",
+      "usb-version": "3.00"
+    },
+    "FixtureVolume": {
+      "label": "FIXTURE",
+      "port": 2,
+      "power-control": "no",
+      "subsystem": "storage",
+      "usb-version": "2.00"
+    }
+  }
+}

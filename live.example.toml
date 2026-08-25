@@ -1,0 +1,12 @@
+# Copy this file to `live.toml` and keep the real credentials local.
+
+[[routers]]
+name = "main"
+url = "http://192.168.1.1"
+credentials = { login = "monitor", password = "replace-me" }
+
+# Add more `[[routers]]` entries as needed. Omit `credentials` when the router
+# accepts requests without authentication.
+[[routers]]
+name = "secondary"
+url = "http://192.168.2.1"

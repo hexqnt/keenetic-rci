@@ -1,0 +1,7 @@
+{
+  "active": "router",
+  "selected": "router",
+  "supported": "router, extender, future-mode",
+  "hw_controlled": false,
+  "hw_locked": false
+}

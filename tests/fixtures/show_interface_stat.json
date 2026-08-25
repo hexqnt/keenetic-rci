@@ -1,0 +1,18 @@
+{
+  "rxpackets": 100,
+  "rx-multicast-packets": 2,
+  "rx-broadcast-packets": 3,
+  "rxbytes": 4096,
+  "rxerrors": 1,
+  "rxdropped": 4,
+  "txpackets": 200,
+  "tx-multicast-packets": 5,
+  "tx-broadcast-packets": 6,
+  "txbytes": 8192,
+  "txerrors": 0,
+  "txdropped": 7,
+  "timestamp": "76863.625556",
+  "last-overflow": "0.000000",
+  "rxspeed": 7158920,
+  "txspeed": 80949
+}

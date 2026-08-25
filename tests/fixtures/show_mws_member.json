@@ -1,0 +1,54 @@
+[
+  {
+    "cid": "11111111-2222-4333-8444-555555555555",
+    "model": "Fixture Extender",
+    "mac": "02:00:00:00:00:62",
+    "known-host": "fixture-extender",
+    "port": [
+      {"label": "1", "appearance": "gray-rj45", "link": "down"}
+    ],
+    "wireless": {"band": [{"index": "0"}, {"index": "1"}]},
+    "ip": "192.0.2.62",
+    "mode": "extender",
+    "hw_type": "extender",
+    "hw_id": "KN-3411",
+    "internet-available": true,
+    "fw": "5.1.3",
+    "fw-available": "5.1.3",
+    "fw-release": "5.01.C.3.0-1",
+    "fw-release-available": "5.01.C.3.0-1",
+    "fw-update-sandbox": "stable",
+    "region": "EA",
+    "associations": 1,
+    "system": {
+      "cpuload": 1,
+      "memory": "170136/262144",
+      "uptime": "829958"
+    },
+    "backhaul": {
+      "uplink": "WifiMaster1/WifiStation0",
+      "root": "8000.02:00:00:00:00:01",
+      "bridge": "8000.02:00:00:00:00:01",
+      "cost": 50,
+      "ap": "WifiMaster1/Backhaul0",
+      "psm": false,
+      "mld": false,
+      "authenticated": true,
+      "txrate": 288,
+      "uptime": 396348,
+      "ht": 80,
+      "mode": "11ax",
+      "gi": 800,
+      "rssi": -70,
+      "mcs": 3,
+      "txss": 2,
+      "ebf": true,
+      "dl-mu": true,
+      "ul-mu": true,
+      "dl-ofdma": true,
+      "pmf": true,
+      "security": "wpa3-psk"
+    },
+    "rci": {"errors": 0}
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "route6": [
+    {
+      "destination": "2001:db8:1::/64",
+      "gateway": "::",
+      "interface": "Bridge0",
+      "metric": 256,
+      "flags": "U",
+      "rejecting": false,
+      "proto": "kernel",
+      "floating": false,
+      "static": false
+    },
+    {
+      "destination": "::/0",
+      "gateway": "2001:db8:1::1",
+      "interface": "GigabitEthernet0/Vlan2",
+      "metric": 1024,
+      "flags": "UG",
+      "rejecting": false,
+      "proto": "boot",
+      "floating": false,
+      "static": false
+    }
+  ]
+}

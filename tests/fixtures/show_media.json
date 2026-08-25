@@ -1,0 +1,52 @@
+{
+  "Media0": {
+    "bus": "usb",
+    "port": "1",
+    "ejectable": true,
+    "removable": true,
+    "state": "ACTIVE",
+    "manufacturer": "Fixture Storage",
+    "product": "Example Disk",
+    "serial": "FIXTURE0001",
+    "initialize-supported": ["ext4", "future-fs"],
+    "size": "1000202043392",
+    "partition": {
+      "Partition1": {
+        "id": "Partition1",
+        "uuid": "11111111-2222-3333-4444-555555555555",
+        "label": "FixtureData",
+        "fstype": "ext4",
+        "check-supported": true,
+        "format-supported": ["ext4"],
+        "state": "MOUNTED",
+        "total": "982291312640",
+        "free": "285839884288",
+        "used-by": ["cifs"]
+      },
+      "Partition2": {
+        "id": "Partition2",
+        "uuid": "",
+        "label": "",
+        "fstype": "swap",
+        "check-supported": false,
+        "format-supported": [],
+        "state": "UNMOUNTED",
+        "total": 1081077760,
+        "free": 1081077760,
+        "used-by": []
+      }
+    }
+  },
+  "FlashStorage": {
+    "bus": "mtd",
+    "ejectable": false,
+    "removable": false,
+    "state": "ACTIVE",
+    "manufacturer": "Fixture",
+    "product": "KN-0000",
+    "serial": "INTERNAL",
+    "initialize-supported": [],
+    "size": "58458112",
+    "partition": {}
+  }
+}

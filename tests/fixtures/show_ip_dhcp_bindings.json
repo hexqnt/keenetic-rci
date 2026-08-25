@@ -1,0 +1,7 @@
+{
+  "lease": [
+    {"ip": "192.0.2.10", "mac": "02:11:22:33:44:55", "via": "02:11:22:33:44:55", "hostname": "wireless-client", "name": "Laptop", "expires": 1800},
+    {"ip": "192.0.2.12", "mac": "02:11:22:33:44:55", "via": "02:11:22:33:44:55", "hostname": "", "name": "Laptop old lease", "expires": "infinity"},
+    {"ip": "192.0.2.40", "mac": "02:00:00:00:00:40", "via": "02:00:00:00:00:41", "hostname": "extender", "name": "Mesh extender", "device": "Bridge0", "mode": "extender", "expires": 2400}
+  ]
+}

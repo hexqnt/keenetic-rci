@@ -1,0 +1,8 @@
+{
+  "elapsed": 240849,
+  "server": "time.example.invalid",
+  "accurate": true,
+  "synchronized": true,
+  "ndsstime": false,
+  "usertime": false
+}

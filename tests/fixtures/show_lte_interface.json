@@ -1,0 +1,72 @@
+{
+  "show": {
+    "interface": {
+      "id": "UsbLte1",
+      "index": 20,
+      "interface-name": "UsbLte1",
+      "type": "UsbLte",
+      "description": "Fixture LTE modem",
+      "traits": ["Usb", "Mobile", "Ethernet", "Ip", "UsbLte"],
+      "link": "up",
+      "state": "up",
+      "mtu": 1500,
+      "admin-only": false,
+      "summary": {
+        "layer": {
+          "conf": "running",
+          "link": "running",
+          "ctrl": "running",
+          "ipv4": "running"
+        }
+      },
+      "plugged": "yes",
+      "connection-state": "connected",
+      "mobile": "4G",
+      "operator": "Fixture Mobile",
+      "apn": "fixture.invalid",
+      "sim": "ready",
+      "pin-attempts": 3,
+      "embedded": false,
+      "roaming": false,
+      "signal-level": 4,
+      "rssi": "-51",
+      "rsrp": "-79",
+      "rsrq": "-7",
+      "cinr": "21",
+      "temperature": "42",
+      "plmn": "00101",
+      "enb-id": "100001",
+      "sector-id": "1",
+      "phy-cell-id": "101",
+      "tac": "20001",
+      "band": "7",
+      "earfcn": 3100,
+      "dl-freq": 2650,
+      "ul-freq": 2530,
+      "carrier": {
+        "1": {
+          "active": true,
+          "mobile": "4G",
+          "phy-cell-id": "102",
+          "earfcn": 1650,
+          "band": "3",
+          "dl-freq": 1845,
+          "ul-freq": 1750,
+          "bandwidth": "20"
+        }
+      },
+      "ati": {
+        "manufacturer": "Fixture Modems",
+        "model": "FM-1000",
+        "revision": "1.0"
+      },
+      "uim": {
+        "spn": "Fixture Mobile"
+      },
+      "imei": "000000000000000",
+      "imsi": "001010000000001",
+      "iccid": "8901000000000000001",
+      "phone-number": "+10000000000"
+    }
+  }
+}

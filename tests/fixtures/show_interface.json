@@ -1,0 +1,23 @@
+{
+  "show": {
+    "interface": {
+      "id": "WifiMaster0/AccessPoint0",
+      "index": 2,
+      "interface-name": "WifiMaster0/AccessPoint0",
+      "type": "AccessPoint",
+      "description": "Fixture Wi-Fi",
+      "traits": ["Wireless", "Ip"],
+      "link": "up",
+      "state": "up",
+      "mtu": 1500,
+      "admin-only": false,
+      "summary": {
+        "layer": {
+          "conf": "running",
+          "link": "running",
+          "ctrl": "running"
+        }
+      }
+    }
+  }
+}

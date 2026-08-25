@@ -1,0 +1,40 @@
+{
+  "station": [
+    {
+      "mac": "02:11:22:33:44:55",
+      "ap": "WifiMaster0/AccessPoint0",
+      "psm": false,
+      "authenticated": true,
+      "txrate": 150,
+      "uptime": 3600,
+      "txbytes": 123456,
+      "rxbytes": 654321,
+      "ht": 40,
+      "mode": "11n",
+      "gi": 400,
+      "rssi": -54,
+      "mcs": 7,
+      "txss": 1,
+      "ebf": false,
+      "security": "wpa2-psk"
+    },
+    {
+      "mac": "02:aa:bb:cc:dd:ee",
+      "ap": "WifiMaster1/AccessPoint0",
+      "authenticated": true,
+      "txrate": 1201,
+      "uptime": 12,
+      "txbytes": 42,
+      "rxbytes": 84,
+      "ht": 80,
+      "mode": "11ax",
+      "gi": 800,
+      "rssi": -38,
+      "mcs": 5,
+      "txss": 2,
+      "dl-mu": true,
+      "dl-ofdma": true,
+      "security": "future-suite"
+    }
+  ]
+}

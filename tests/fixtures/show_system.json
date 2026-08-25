@@ -1,0 +1,12 @@
+{
+  "hostname": "fixture-router",
+  "domainname": "fixture.invalid",
+  "uptime": "0 days, 01:02:03",
+  "cpuload": 7,
+  "memtotal": 268435456,
+  "memfree": 134217728,
+  "conntotal": 32768,
+  "connfree": 32000,
+  "memory": "128/256 Mbytes",
+  "swap": "0/0 Mbytes"
+}

@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "internet": true,
+  "reliable": true,
+  "checked": "Thu Jan  1 00:00:00 2026",
+  "gateway-accessible": true,
+  "dns-accessible": true,
+  "captive-accessible": true,
+  "gateway": {
+    "accessible": true,
+    "address": "192.0.2.1",
+    "interface": "Fixture0"
+  },
+  "captive": {
+    "resolved": true,
+    "address": "192.0.2.2"
+  }
+}
