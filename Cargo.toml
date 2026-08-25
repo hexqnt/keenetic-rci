@@ -10,6 +10,15 @@ documentation = "https://docs.rs/keenetic-rci"
 readme = "README.md"
 keywords = ["keenetic", "netcraze", "router", "rci", "networking"]
 categories = ["api-bindings", "network-programming"]
+include = [
+    "src/**",
+    "tests/**",
+    "benches/**",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE*",
+    "live.example.toml",
+]
 
 [dependencies]
 bytes = "1.12.1"
