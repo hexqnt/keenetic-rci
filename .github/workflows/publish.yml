@@ -1,8 +1,9 @@
 name: Publish
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -19,7 +20,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
   RUSTFLAGS: -Dwarnings
 
 jobs:
