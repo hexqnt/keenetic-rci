@@ -1,6 +1,6 @@
 # keenetic-rci
 
-[![CI](https://github.com/hexqnt/keenetic-rci/actions/workflows/ci.yml/badge.svg)](https://github.com/hexqnt/keenetic-rci/actions/workflows/ci.yml)
+[![CI](https://github.com/hexqnt/keenetic-rci/actions/workflows/ci.yml/badge.svg)](https://github.com/hexqnt/keenetic-rci/actions/workflows/ci.yml) [![crates.io](https://img.shields.io/crates/v/keenetic-rci.svg)](https://crates.io/crates/keenetic-rci) [![docs.rs](https://img.shields.io/docsrs/keenetic-rci)](https://docs.rs/keenetic-rci)
 
 An unofficial asynchronous Rust client for the local Keenetic/Netcraze RCI HTTP API. It supports typed requests and raw RCI operations, LAN challenge-response authentication, session cookies, one transparent re-authentication attempt after `401`, and RCI errors returned inside successful HTTP responses.
 
