@@ -361,6 +361,10 @@ pub mod units;
 pub mod version;
 pub mod wifi;
 
+const ROUTER_DATETIME_FORMAT: &[time::format_description::FormatItem<'static>] = format_description!(
+    "[weekday repr:short] [month repr:short] [day padding:space] [hour]:[minute]:[second] [year]"
+);
+
 /// Link state reported for an interface.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
@@ -426,9 +430,26 @@ pub struct InternetStatus {
     pub captive_accessible: bool,
 }
 
-const ROUTER_DATETIME_FORMAT: &[time::format_description::FormatItem<'static>] = format_description!(
-    "[weekday repr:short] [month repr:short] [day padding:space] [hour]:[minute]:[second] [year]"
-);
+/// Interfaces returned by `show/interface`, keyed by router interface name.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(transparent)]
+pub struct Interfaces(BTreeMap<InterfaceId, Interface>);
+
+impl Interfaces {
+    /// Iterates over response keys and interfaces in lexical order.
+    #[must_use = "iterators are lazy and do nothing unless consumed"]
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (&str, &Interface)> {
+        self.0
+            .iter()
+            .map(|(name, interface)| (name.as_str(), interface))
+    }
+
+    /// Iterates over interfaces carrying a verified mobile/LTE trait.
+    pub fn lte(&self) -> impl Iterator<Item = (&str, &Interface)> {
+        self.iter()
+            .filter(|(_, interface)| interface.is_mobile_broadband())
+    }
+}
 
 fn deserialize_router_datetime<'de, D>(deserializer: D) -> Result<PrimitiveDateTime, D::Error>
 where
@@ -457,27 +478,6 @@ where
     }
 
     deserializer.deserialize_str(Visitor)
-}
-
-/// Interfaces returned by `show/interface`, keyed by router interface name.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-#[serde(transparent)]
-pub struct Interfaces(BTreeMap<InterfaceId, Interface>);
-
-impl Interfaces {
-    /// Iterates over response keys and interfaces in lexical order.
-    #[must_use = "iterators are lazy and do nothing unless consumed"]
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (&str, &Interface)> {
-        self.0
-            .iter()
-            .map(|(name, interface)| (name.as_str(), interface))
-    }
-
-    /// Iterates over interfaces carrying a verified mobile/LTE trait.
-    pub fn lte(&self) -> impl Iterator<Item = (&str, &Interface)> {
-        self.iter()
-            .filter(|(_, interface)| interface.is_mobile_broadband())
-    }
 }
 
 impl_map_collection!(
@@ -925,7 +925,8 @@ mod tests {
             lte.status().reported_carriers["1"].band,
             Some(super::mobile::RadioBand::Number(3))
         );
-        assert_eq!(lte.status().cell.enb_id.as_deref(), Some("100001"));
+        assert_eq!(lte.status().cell.enb_id, Some(100_001));
+        assert_eq!(lte.status().cell.sector_id, Some(1));
         assert_eq!(
             lte.status()
                 .cell
@@ -959,6 +960,21 @@ mod tests {
                 .as_ref()
                 .and_then(|modem| modem.model.as_deref()),
             Some("FM-1000")
+        );
+
+        let mut active_value: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/show_lte_interface.json"))
+                .unwrap();
+        active_value["show"]["interface"]["active"] = true.into();
+        let active_from_value: ShowLteInterfaceReply =
+            serde_json::from_value(active_value).unwrap();
+        assert_eq!(
+            active_from_value
+                .interface()
+                .status()
+                .primary_carrier
+                .active,
+            Some(true)
         );
 
         let disconnected: ShowLteInterfaceReply = serde_json::from_str(include_str!(

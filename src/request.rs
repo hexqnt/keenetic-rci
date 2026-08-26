@@ -45,6 +45,25 @@ pub(crate) mod private {
         }
     }
 
+    impl<T> Sealed for &T
+    where
+        T: Sealed + ?Sized,
+    {
+        const ENDPOINT: &'static str = T::ENDPOINT;
+
+        fn method(&self) -> reqwest::Method {
+            T::method(self)
+        }
+
+        fn mode(&self) -> Result<Mode, serde_json::Error> {
+            T::mode(self)
+        }
+
+        fn query(&self) -> Option<(&'static str, &str)> {
+            T::query(self)
+        }
+    }
+
     impl Sealed for ShowInterfaceStat {
         const ENDPOINT: &'static str = "show/interface/stat";
 
@@ -275,9 +294,18 @@ interface_request!(
 ///
 /// This trait cannot be implemented outside this crate. Use the raw methods on
 /// [`crate::KeeneticClient`] for endpoints without a typed request.
+/// Shared references also implement this trait, allowing a prepared request to
+/// be reused without cloning its validated input.
 pub trait RciRequest: private::Sealed {
     /// Typed response returned by the endpoint.
     type Response: DeserializeOwned;
+}
+
+impl<T> RciRequest for &T
+where
+    T: RciRequest + ?Sized,
+{
+    type Response = T::Response;
 }
 
 /// A sealed typed request for a continued Network Connection Test operation.

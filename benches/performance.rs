@@ -22,6 +22,7 @@ const ASSOCIATIONS: &[u8] = include_bytes!("../tests/fixtures/show_associations.
 const HOTSPOT: &[u8] = include_bytes!("../tests/fixtures/show_ip_hotspot.json");
 const ARP: &[u8] = include_bytes!("../tests/fixtures/show_ip_arp.json");
 const DHCP: &[u8] = include_bytes!("../tests/fixtures/show_ip_dhcp_bindings.json");
+const LTE_INTERFACE: &[u8] = include_bytes!("../tests/fixtures/show_lte_interface.json");
 
 const SNAPSHOT_FIXTURES: &[&[u8]] = &[
     include_bytes!("../tests/fixtures/show_version.json"),
@@ -98,6 +99,10 @@ fn benchmark_models(criterion: &mut Criterion) {
     group.throughput(Throughput::Bytes(snapshot_bytes));
     group.bench_function("typed_snapshot", |bencher| {
         bencher.iter(decode_typed_snapshot);
+    });
+    group.throughput(Throughput::Bytes(LTE_INTERFACE.len() as u64));
+    group.bench_function("lte_interface", |bencher| {
+        bencher.iter(|| black_box(decode::<ShowLteInterfaceReply>(LTE_INTERFACE)));
     });
     group.finish();
 }

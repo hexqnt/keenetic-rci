@@ -5,7 +5,6 @@ use thiserror::Error;
 
 use crate::model::units::{Celsius, Db, Dbm, optional_measurement};
 
-use super::Interface;
 use super::iccid::Iccid;
 use super::imei::Imei;
 use super::imsi::Imsi;
@@ -13,6 +12,9 @@ use super::optional_nonempty_string;
 use super::plmn::{Plmn, deserialize_optional as optional_plmn};
 use super::reported::{Reported, deserialize_optional as optional_reported};
 use super::text::{FromStrVisitor, deserialize_optional_from_str as optional_from_str};
+use super::{
+    Interface, InterfaceKind, InterfaceState, InterfaceSummary, InterfaceTrait, LinkState,
+};
 
 /// The radio access technology reported for a component carrier.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -267,24 +269,171 @@ impl<'de> Deserialize<'de> for MobileInterface {
     where
         D: Deserializer<'de>,
     {
-        #[derive(Deserialize)]
-        struct Wire {
-            #[serde(flatten)]
-            interface: Interface,
-            #[serde(flatten)]
-            status: MobileStatus,
-        }
-
-        let wire = Wire::deserialize(deserializer)?;
-        if !wire.interface.is_mobile_broadband() {
+        let (interface, status) = MobileInterfaceWire::deserialize(deserializer)?.into_parts();
+        if !interface.is_mobile_broadband() {
             return Err(serde::de::Error::custom(
                 "the interface is not marked with a mobile/LTE trait",
             ));
         }
-        Ok(Self {
-            interface: wire.interface,
-            status: wire.status,
-        })
+        Ok(Self { interface, status })
+    }
+}
+
+/// The router places common interface fields and modem status in one JSON map.
+/// Keeping the wire representation flat lets Serde decode it in one pass.
+#[derive(Deserialize)]
+struct MobileInterfaceWire {
+    id: super::InterfaceId,
+    index: u64,
+    #[serde(rename = "interface-name")]
+    interface_name: super::InterfaceId,
+    #[serde(rename = "type")]
+    kind: InterfaceKind,
+    traits: Box<[InterfaceTrait]>,
+    link: LinkState,
+    #[serde(rename = "admin-only")]
+    admin_only: bool,
+    summary: InterfaceSummary,
+    description: Option<Box<str>>,
+    state: Option<InterfaceState>,
+    mtu: Option<super::Mtu>,
+    #[serde(default, deserialize_with = "optional_nonempty_string")]
+    plugged: Option<Box<str>>,
+    #[serde(
+        rename = "connection-state",
+        default,
+        deserialize_with = "optional_from_str"
+    )]
+    connection_state: Option<MobileConnectionState>,
+    #[serde(default, deserialize_with = "optional_nonempty_string")]
+    operator: Option<Box<str>>,
+    #[serde(default, deserialize_with = "optional_nonempty_string")]
+    apn: Option<Box<str>>,
+    #[serde(rename = "sim", default, deserialize_with = "optional_from_str")]
+    sim_state: Option<SimState>,
+    #[serde(rename = "pin-attempts")]
+    pin_attempts: Option<u8>,
+    embedded: Option<bool>,
+    roaming: Option<bool>,
+    #[serde(default, deserialize_with = "optional_reported")]
+    imei: Option<Reported<Imei>>,
+    #[serde(default, deserialize_with = "optional_reported")]
+    imsi: Option<Reported<Imsi>>,
+    #[serde(default, deserialize_with = "optional_reported")]
+    iccid: Option<Reported<Iccid>>,
+    #[serde(
+        rename = "phone-number",
+        default,
+        deserialize_with = "optional_nonempty_string"
+    )]
+    phone_number: Option<Box<str>>,
+    #[serde(rename = "signal-level")]
+    signal_level: Option<i64>,
+    #[serde(default, deserialize_with = "optional_measurement")]
+    rssi: Option<Dbm>,
+    #[serde(default, deserialize_with = "optional_measurement")]
+    rsrp: Option<Dbm>,
+    #[serde(default, deserialize_with = "optional_measurement")]
+    rsrq: Option<Db>,
+    #[serde(default, deserialize_with = "optional_measurement")]
+    cinr: Option<Db>,
+    #[serde(
+        rename = "temperature",
+        default,
+        deserialize_with = "optional_measurement"
+    )]
+    modem_temperature: Option<Celsius>,
+    #[serde(default, deserialize_with = "optional_plmn")]
+    plmn: Option<Plmn>,
+    #[serde(rename = "enb-id", default, deserialize_with = "optional_from_str")]
+    enb_id: Option<u32>,
+    #[serde(rename = "sector-id", default, deserialize_with = "optional_from_str")]
+    sector_id: Option<u16>,
+    #[serde(default, deserialize_with = "optional_from_str")]
+    tac: Option<u32>,
+    active: Option<bool>,
+    #[serde(rename = "mobile", default, deserialize_with = "optional_from_str")]
+    network: Option<RadioAccessTechnology>,
+    #[serde(default, deserialize_with = "optional_from_str")]
+    band: Option<RadioBand>,
+    earfcn: Option<u64>,
+    #[serde(rename = "dl-freq")]
+    downlink_frequency: Option<u64>,
+    #[serde(rename = "ul-freq")]
+    uplink_frequency: Option<u64>,
+    #[serde(default, deserialize_with = "optional_measurement")]
+    bandwidth: Option<CarrierBandwidth>,
+    #[serde(
+        rename = "phy-cell-id",
+        default,
+        deserialize_with = "optional_from_str"
+    )]
+    physical_cell_id: Option<u16>,
+    #[serde(rename = "carrier", default)]
+    reported_carriers: BTreeMap<Box<str>, ComponentCarrier>,
+    #[serde(rename = "ati")]
+    modem: Option<LteModem>,
+    #[serde(rename = "uim")]
+    sim: Option<LteSim>,
+}
+
+impl MobileInterfaceWire {
+    fn into_parts(self) -> (Interface, MobileStatus) {
+        let interface = Interface {
+            id: self.id,
+            index: self.index,
+            interface_name: self.interface_name,
+            kind: self.kind,
+            traits: self.traits,
+            link: self.link,
+            admin_only: self.admin_only,
+            summary: self.summary,
+            description: self.description,
+            state: self.state,
+            mtu: self.mtu,
+        };
+        let status = MobileStatus {
+            plugged: self.plugged,
+            connection_state: self.connection_state,
+            operator: self.operator,
+            apn: self.apn,
+            sim_state: self.sim_state,
+            pin_attempts: self.pin_attempts,
+            embedded: self.embedded,
+            roaming: self.roaming,
+            imei: self.imei,
+            imsi: self.imsi,
+            iccid: self.iccid,
+            phone_number: self.phone_number,
+            signal: MobileSignal {
+                level: self.signal_level,
+                rssi: self.rssi,
+                rsrp: self.rsrp,
+                rsrq: self.rsrq,
+                cinr: self.cinr,
+            },
+            modem_temperature: self.modem_temperature,
+            cell: ServingCell {
+                plmn: self.plmn,
+                enb_id: self.enb_id,
+                sector_id: self.sector_id,
+                tac: self.tac,
+            },
+            primary_carrier: ComponentCarrier {
+                active: self.active,
+                network: self.network,
+                band: self.band,
+                earfcn: self.earfcn,
+                downlink_frequency: self.downlink_frequency,
+                uplink_frequency: self.uplink_frequency,
+                bandwidth: self.bandwidth,
+                physical_cell_id: self.physical_cell_id,
+            },
+            reported_carriers: self.reported_carriers,
+            modem: self.modem,
+            sim: self.sim,
+        };
+        (interface, status)
     }
 }
 
@@ -399,22 +548,14 @@ pub struct ServingCell {
     #[serde(default, deserialize_with = "optional_plmn")]
     pub plmn: Option<Plmn>,
     /// eNodeB identifier.
-    #[serde(
-        rename = "enb-id",
-        default,
-        deserialize_with = "optional_nonempty_string"
-    )]
-    pub enb_id: Option<Box<str>>,
+    #[serde(rename = "enb-id", default, deserialize_with = "optional_from_str")]
+    pub enb_id: Option<u32>,
     /// eNodeB sector identifier.
-    #[serde(
-        rename = "sector-id",
-        default,
-        deserialize_with = "optional_nonempty_string"
-    )]
-    pub sector_id: Option<Box<str>>,
+    #[serde(rename = "sector-id", default, deserialize_with = "optional_from_str")]
+    pub sector_id: Option<u16>,
     /// Tracking area code.
-    #[serde(default, deserialize_with = "optional_nonempty_string")]
-    pub tac: Option<Box<str>>,
+    #[serde(default, deserialize_with = "optional_from_str")]
+    pub tac: Option<u32>,
 }
 
 /// Parameters for a primary or additional LTE component carrier.
@@ -444,9 +585,9 @@ pub struct ComponentCarrier {
     #[serde(
         rename = "phy-cell-id",
         default,
-        deserialize_with = "optional_nonempty_string"
+        deserialize_with = "optional_from_str"
     )]
-    pub physical_cell_id: Option<Box<str>>,
+    pub physical_cell_id: Option<u16>,
 }
 
 /// Non-identifying modem information from the RCI `ati` object.
@@ -570,5 +711,35 @@ mod tests {
         assert_eq!(empty.bandwidth, None);
         assert!(serde_json::from_str::<ComponentCarrier>(r#"{"bandwidth":0}"#).is_err());
         assert!(serde_json::from_str::<ComponentCarrier>(r#"{"bandwidth":-1}"#).is_err());
+    }
+
+    #[test]
+    fn cell_identifiers_parse_as_numbers() {
+        let status: MobileStatus = serde_json::from_str(
+            r#"{"enb-id":"100001","sector-id":"1","tac":"20001","phy-cell-id":"101"}"#,
+        )
+        .unwrap();
+
+        assert_eq!(status.cell.enb_id, Some(100_001));
+        assert_eq!(status.cell.sector_id, Some(1));
+        assert_eq!(status.cell.tac, Some(20_001));
+        assert_eq!(status.primary_carrier.physical_cell_id, Some(101));
+    }
+
+    #[test]
+    fn cell_identifiers_reject_malformed_and_oversized_numbers() {
+        assert!(serde_json::from_str::<MobileStatus>(r#"{"tac":"4294967296"}"#).is_err());
+        assert!(serde_json::from_str::<MobileStatus>(r#"{"enb-id":"4294967296"}"#).is_err());
+        assert!(serde_json::from_str::<MobileStatus>(r#"{"sector-id":"65536"}"#).is_err());
+        assert!(serde_json::from_str::<ComponentCarrier>(r#"{"phy-cell-id":"65536"}"#).is_err());
+        assert!(serde_json::from_str::<MobileStatus>(r#"{"tac":"not-a-number"}"#).is_err());
+
+        let empty: MobileStatus =
+            serde_json::from_str(r#"{"enb-id":"","sector-id":"","tac":"","phy-cell-id":""}"#)
+                .unwrap();
+        assert_eq!(empty.cell.enb_id, None);
+        assert_eq!(empty.cell.sector_id, None);
+        assert_eq!(empty.cell.tac, None);
+        assert_eq!(empty.primary_carrier.physical_cell_id, None);
     }
 }
