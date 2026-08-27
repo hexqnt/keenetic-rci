@@ -23,6 +23,7 @@ use tokio::time::{Instant, sleep_until};
 
 use crate::{
     auth::{AuthPayload, Credentials, Secret, response_hash},
+    cli::{CliCommand, CliReply},
     error::{
         AuthenticationError, ConfigError, Error, HttpError, JsonSerializationError,
         MalformedAuthReason, QuerySerializationError, RciError, RciStatusEntry, RequestContext,
@@ -327,6 +328,38 @@ impl KeeneticClient {
             .await
     }
 
+    /// Executes one validated command through `POST /rci/parse`.
+    ///
+    /// This is a single request rather than an interactive or streaming CLI
+    /// session. Command-specific fields are retained in [`CliReply`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] when the request cannot be sent or its response fails
+    /// HTTP, RCI-status, or JSON checks.
+    pub async fn execute_cli(&self, command: &CliCommand) -> Result<CliReply, Error> {
+        self.execute_cli_as(command).await
+    }
+
+    /// Executes one validated CLI command and decodes its command-specific reply.
+    ///
+    /// The configured request timeout must be long enough for the router command
+    /// to finish. This method does not retry a transport failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] when request serialization, transport, authentication,
+    /// HTTP, RCI-status, or response decoding fails.
+    pub fn execute_cli_as<T>(
+        &self,
+        command: &CliCommand,
+    ) -> impl Future<Output = Result<T, Error>> + Send + '_
+    where
+        T: DeserializeOwned,
+    {
+        self.post_at_path("parse", command)
+    }
+
     /// Serializes and sends a raw JSON command to `POST /rci/`.
     ///
     /// RCI commands can modify the running configuration. This method does not
@@ -341,14 +374,7 @@ impl KeeneticClient {
         T: DeserializeOwned,
         B: Serialize + ?Sized,
     {
-        let body = serde_json::to_vec(body).map_err(|source| {
-            Error::from(JsonSerializationError::new(
-                Inner::rci_context(Method::POST, ""),
-                source,
-            ))
-        });
-        let prepared = body.map(|body| self.inner.prepare_rci_post(body));
-        async move { self.inner.send_json(prepared?).await }
+        self.post_at_path("", body)
     }
 
     /// Serializes and sends a raw JSON command, returning checked raw JSON.
@@ -362,6 +388,63 @@ impl KeeneticClient {
         B: Serialize + ?Sized,
     {
         self.post(body)
+    }
+
+    /// Serializes and sends JSON to a specific endpoint below `/rci/`.
+    ///
+    /// This method does not retry a transport failure or infer whether the
+    /// endpoint changes router state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] when JSON serialization fails, the request cannot be
+    /// sent, or its response cannot be checked and decoded as `T`.
+    pub fn post_at<T, B>(
+        &self,
+        path: &RciPath,
+        body: &B,
+    ) -> impl Future<Output = Result<T, Error>> + Send + '_
+    where
+        T: DeserializeOwned,
+        B: Serialize + ?Sized,
+    {
+        self.post_at_path(path.as_str(), body)
+    }
+
+    /// Sends JSON to a specific endpoint below `/rci/`, returning checked raw JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] when JSON serialization fails or the request/response
+    /// pipeline fails.
+    pub fn post_at_raw<B>(
+        &self,
+        path: &RciPath,
+        body: &B,
+    ) -> impl Future<Output = Result<Value, Error>> + Send + '_
+    where
+        B: Serialize + ?Sized,
+    {
+        self.post_at(path, body)
+    }
+
+    fn post_at_path<T, B>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> impl Future<Output = Result<T, Error>> + Send + '_
+    where
+        T: DeserializeOwned,
+        B: Serialize + ?Sized,
+    {
+        let body = serde_json::to_vec(body).map_err(|source| {
+            Error::from(JsonSerializationError::new(
+                Inner::rci_context(Method::POST, path),
+                source,
+            ))
+        });
+        let prepared = body.map(|body| self.inner.prepare_rci_post_at(path, body));
+        async move { self.inner.send_json(prepared?).await }
     }
 }
 

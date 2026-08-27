@@ -15,8 +15,8 @@ use axum::{
     http::{HeaderValue, Method, Response, StatusCode, header},
 };
 use keenetic_rci::{
-    AuthenticationError, CiPath, Dbm, Error, FirmwareChannel, HardwareType, KeeneticClient,
-    NetworkTestOutput, RciPath,
+    AuthenticationError, CiPath, CliCommand, Dbm, Error, FirmwareChannel, HardwareType,
+    KeeneticClient, NetworkTestOutput, RciPath,
     request::{
         Iperf3, IperfLimit, Ping, ShowAssociations, ShowIdentification, ShowInterface,
         ShowInterfaceStat, ShowInterfaces, ShowInternetStatus, ShowIpArp, ShowIpDhcpBindings,
@@ -1147,6 +1147,136 @@ async fn typed_interface_and_raw_posts_have_no_hidden_side_effects() {
     let raw = client.post_raw(&json!({"fixture": true})).await.unwrap();
     assert_eq!(typed, raw);
     assert_eq!(requests.load(Ordering::SeqCst), 3);
+}
+
+#[tokio::test]
+async fn post_at_uses_the_validated_rci_endpoint() {
+    let requests = Arc::new(AtomicUsize::new(0));
+    let server = spawn({
+        let requests = Arc::clone(&requests);
+        move |request| {
+            let requests = Arc::clone(&requests);
+            async move {
+                requests.fetch_add(1, Ordering::SeqCst);
+                assert_eq!(request.method(), Method::POST);
+                assert_eq!(request.uri().path(), "/rci/interface/description");
+                assert_eq!(
+                    request.headers().get(header::CONTENT_TYPE),
+                    Some(&HeaderValue::from_static("application/json"))
+                );
+                let body = to_bytes(request.into_body(), usize::MAX).await.unwrap();
+                assert_eq!(
+                    serde_json::from_slice::<Value>(&body).unwrap(),
+                    json!({"name": "Bridge0", "description": "Home"})
+                );
+                json_response(json!({"required": true}))
+            }
+        }
+    })
+    .await;
+    let client = client(&server.origin);
+    let path = raw_path("interface/description");
+    let body = json!({"name": "Bridge0", "description": "Home"});
+
+    assert_eq!(
+        client
+            .post_at::<RequiredReply, _>(&path, &body)
+            .await
+            .unwrap(),
+        RequiredReply { required: true }
+    );
+    assert_eq!(
+        client.post_at_raw(&path, &body).await.unwrap(),
+        json!({"required": true})
+    );
+    assert_eq!(requests.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn cli_execution_uses_parse_and_preserves_command_specific_output() {
+    let server = spawn(|request| async move {
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(request.uri().path(), "/rci/parse");
+        assert_eq!(
+            request.headers().get(header::CONTENT_TYPE),
+            Some(&HeaderValue::from_static("application/json"))
+        );
+        let body = to_bytes(request.into_body(), usize::MAX).await.unwrap();
+        let command: String = serde_json::from_slice(&body).unwrap();
+        assert_eq!(command, "interface UsbLte1 tty send AT+GTCAINFO?");
+        json_response(json!({
+            "tty-out": ["PCC:103,489,1275", "OK"],
+            "prompt": "(config)",
+            "status": [{
+                "status": "message",
+                "code": "73141676",
+                "ident": "Mobile::Interface",
+                "message": "got expected response"
+            }],
+            "future-field": {"preserved": true}
+        }))
+    })
+    .await;
+    let client = client(&server.origin);
+    let command = CliCommand::new("interface UsbLte1 tty send AT+GTCAINFO?").unwrap();
+
+    let reply = client.execute_cli(&command).await.unwrap();
+
+    assert_eq!(
+        reply.tty_output().collect::<Vec<_>>(),
+        ["PCC:103,489,1275", "OK"]
+    );
+    assert_eq!(reply.prompt(), Some("(config)"));
+    assert_eq!(
+        reply.raw().pointer("/future-field/preserved"),
+        Some(&Value::Bool(true))
+    );
+}
+
+#[tokio::test]
+async fn cli_supports_typed_replies() {
+    let server = spawn(|request| async move {
+        assert_eq!(request.uri().path(), "/rci/parse");
+        json_response(json!({"required": true}))
+    })
+    .await;
+    let client = client(&server.origin);
+    let command = CliCommand::new("show fixture").unwrap();
+
+    assert_eq!(
+        client
+            .execute_cli_as::<RequiredReply>(&command)
+            .await
+            .unwrap(),
+        RequiredReply { required: true }
+    );
+}
+
+#[tokio::test]
+async fn cli_errors_use_the_parse_context_without_exposing_the_command() {
+    let server = spawn(|request| async move {
+        assert_eq!(request.uri().path(), "/rci/parse");
+        json_response(json!({
+            "status": [{
+                "status": "error",
+                "code": "73140786",
+                "ident": "Mobile::Interface",
+                "message": "fixture failure"
+            }]
+        }))
+    })
+    .await;
+    let client = client(&server.origin);
+    let sensitive = "user admin password unique-sensitive-command-value";
+    let command = CliCommand::new(sensitive).unwrap();
+
+    let error = client.execute_cli(&command).await.unwrap_err();
+    let Error::Rci(ref rci) = error else {
+        panic!("expected an RCI error")
+    };
+    assert_eq!(rci.context().endpoint(), "/rci/parse");
+    assert_eq!(rci.entries()[0].code.as_deref(), Some("73140786"));
+    assert!(!format!("{command:?} {error:?} {error}").contains(sensitive));
 }
 
 #[tokio::test]

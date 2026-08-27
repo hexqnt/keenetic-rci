@@ -2,7 +2,8 @@
 //!
 //! [`KeeneticClient::execute`] is the primary typed interface. The raw methods
 //! on [`KeeneticClient`] are escape hatches for RCI endpoints that do not yet
-//! have a typed request.
+//! have a typed request. [`KeeneticClient::execute_cli`] sends one validated,
+//! non-interactive CLI command through the same authenticated transport.
 //!
 //! # Example
 //!
@@ -22,6 +23,7 @@
 
 pub use ipnet::{Ipv4Net, Ipv6Net};
 
+pub use cli::{CliCommand, CliReply, InvalidCliCommand};
 pub use client::{KeeneticClient, KeeneticClientBuilder, NetworkTestOutput, NetworkTestSession};
 pub use error::{
     AuthenticationError, ConfigError, Error, HttpError, JsonSerializationError,
@@ -105,6 +107,7 @@ pub use request::{
 };
 
 mod auth;
+mod cli;
 mod client;
 mod error;
 mod model;

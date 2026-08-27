@@ -86,17 +86,42 @@ async fn example(client: KeeneticClient) -> Result<(), Box<dyn std::error::Error
     let path: RciPath = "show/interface".parse()?;
     let _interfaces: Value = client.get_raw(&path).await?;
     let _reply: Value = client.post_raw(&json!({"show": {"version": {}}})).await?;
+    let inspect: RciPath = "show/interface".parse()?;
+    let _interface: Value = client
+        .post_at_raw(&inspect, &json!({"name": "Bridge0"}))
+        .await?;
+
     Ok(())
 }
 ```
 
-Raw `POST /rci/` commands can change the running configuration. The library does not save changes, verify their effect, or retry a transport failure.
+Raw RCI commands can change the running configuration. The library does not save changes, verify their effect, or retry a transport failure.
+
+## CLI commands
+
+`execute_cli` sends one validated, non-interactive command through `/rci/parse`. It is not a terminal session and returns output only after the command finishes. The client request timeout must therefore exceed the command's own timeout.
+
+```rust
+use keenetic_rci::{CliCommand, KeeneticClient};
+
+async fn query_modem(client: &KeeneticClient) -> Result<(), Box<dyn std::error::Error>> {
+    let command = CliCommand::new("interface UsbLte1 tty send AT+GTCAINFO?")?;
+    let reply = client.execute_cli(&command).await?;
+
+    for line in reply.tty_output() {
+        println!("{line}");
+    }
+    Ok(())
+}
+```
+
+Command-specific response fields remain available through `CliReply::raw`. CLI commands can change the running configuration or modem state; transport failures are not retried.
 
 Only local/LAN RCI authentication is supported. KeenDNS remote authentication and HTTP Digest through the port 79 proxy are not supported.
 
 ## Live tests
 
-Read-only live tests are ignored by default. Copy `live.example.toml` to the`live.toml`, configure one or more routers, and run:
+Read-only live tests are ignored by default. Copy `live.example.toml` to `live.toml`, configure one or more routers, and run:
 
 ```bash
 cargo test --test live live_routers_support_typed_api -- --ignored --nocapture
