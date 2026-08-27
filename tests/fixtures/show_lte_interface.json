@@ -47,6 +47,16 @@
         "1": {
           "active": true,
           "mobile": "4G",
+          "phy-cell-id": "101",
+          "earfcn": 3100,
+          "band": "7",
+          "dl-freq": 2650,
+          "ul-freq": 2530,
+          "bandwidth": "20"
+        },
+        "2": {
+          "active": true,
+          "mobile": "4G",
           "phy-cell-id": "102",
           "earfcn": 1650,
           "band": "3",

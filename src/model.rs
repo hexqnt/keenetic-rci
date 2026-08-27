@@ -922,8 +922,8 @@ mod tests {
             Some(super::mobile::RadioAccessTechnology::G4)
         );
         assert_eq!(
-            lte.status().reported_carriers["1"].band,
-            Some(super::mobile::RadioBand::Number(3))
+            lte.status().reported_carriers[&super::mobile::ComponentCarrierId::PRIMARY].band,
+            Some(super::mobile::RadioBand::Number(7))
         );
         assert_eq!(lte.status().cell.enb_id, Some(100_001));
         assert_eq!(lte.status().cell.sector_id, Some(1));

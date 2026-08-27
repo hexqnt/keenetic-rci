@@ -49,6 +49,7 @@ pub use model::{
     ShowLteInterfaceReply, ShowLteInterfaceResult, Version, VersionBuild, VersionCapabilities,
     mobile::CarrierBandwidth,
     mobile::ComponentCarrier,
+    mobile::ComponentCarrierId,
     mobile::InvalidCarrierBandwidth,
     mobile::LteModem,
     mobile::LteSim,

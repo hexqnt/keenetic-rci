@@ -1,4 +1,6 @@
-use std::{collections::BTreeMap, convert::Infallible, fmt, ops::Deref, str::FromStr};
+use std::{
+    collections::BTreeMap, convert::Infallible, fmt, num::NonZeroU16, ops::Deref, str::FromStr,
+};
 
 use serde::{Deserialize, Deserializer};
 use thiserror::Error;
@@ -379,7 +381,7 @@ struct MobileInterfaceWire {
     )]
     physical_cell_id: Option<u16>,
     #[serde(rename = "carrier", default)]
-    reported_carriers: BTreeMap<Box<str>, ComponentCarrier>,
+    reported_carriers: BTreeMap<ComponentCarrierId, ComponentCarrier>,
     #[serde(rename = "ati")]
     modem: Option<LteModem>,
     #[serde(rename = "uim")]
@@ -514,18 +516,49 @@ pub struct MobileStatus {
     pub primary_carrier: ComponentCarrier,
     /// Component carriers reported in the nested `carrier` map.
     ///
-    /// Depending on the modem integration, this map can either contain only
-    /// secondary carriers or repeat the primary carrier from the top-level
-    /// fields. Consumers that need distinct primary and secondary carriers
-    /// should normalize the entries using their radio identifiers.
+    /// When present, entry [`ComponentCarrierId::PRIMARY`] repeats the primary
+    /// carrier represented by the top-level fields. Higher identifiers denote
+    /// additional component carriers. Some modem integrations omit the map.
     #[serde(rename = "carrier", default)]
-    pub reported_carriers: BTreeMap<Box<str>, ComponentCarrier>,
+    pub reported_carriers: BTreeMap<ComponentCarrierId, ComponentCarrier>,
     /// Modem manufacturer/model/firmware information.
     #[serde(rename = "ati")]
     pub modem: Option<LteModem>,
     /// Non-identifying SIM/provider information.
     #[serde(rename = "uim")]
     pub sim: Option<LteSim>,
+}
+
+/// Numeric identifier used for entries in the nested RCI `carrier` map.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[repr(transparent)]
+#[serde(transparent)]
+pub struct ComponentCarrierId(NonZeroU16);
+
+impl ComponentCarrierId {
+    /// Identifier used by Keenetic for the entry that repeats the primary carrier.
+    pub const PRIMARY: Self = Self(NonZeroU16::MIN);
+
+    /// Creates a non-zero component-carrier identifier.
+    #[must_use]
+    pub const fn new(value: u16) -> Option<Self> {
+        match NonZeroU16::new(value) {
+            Some(value) => Some(Self(value)),
+            None => None,
+        }
+    }
+
+    /// Returns the numeric identifier.
+    #[must_use]
+    pub const fn get(self) -> u16 {
+        self.0.get()
+    }
+}
+
+impl fmt::Display for ComponentCarrierId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
 }
 
 impl MobileStatus {
@@ -627,6 +660,26 @@ pub struct ComponentCarrier {
     pub physical_cell_id: Option<u16>,
 }
 
+impl ComponentCarrier {
+    /// Reports whether any shared radio-identity field has a conflicting value.
+    ///
+    /// Missing fields do not conflict. The compared identity consists of the
+    /// frequency band, EARFCN, and physical cell identifier.
+    #[must_use]
+    pub fn has_radio_identity_conflict(&self, other: &Self) -> bool {
+        conflicting(self.band.as_ref(), other.band.as_ref())
+            || conflicting(self.earfcn.as_ref(), other.earfcn.as_ref())
+            || conflicting(
+                self.physical_cell_id.as_ref(),
+                other.physical_cell_id.as_ref(),
+            )
+    }
+}
+
+fn conflicting<T: PartialEq>(left: Option<&T>, right: Option<&T>) -> bool {
+    left.zip(right).is_some_and(|(left, right)| left != right)
+}
+
 /// Non-identifying modem information from the RCI `ati` object.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[non_exhaustive]
@@ -654,9 +707,48 @@ pub struct LteSim {
 #[cfg(test)]
 mod tests {
     use super::{
-        CarrierBandwidth, ComponentCarrier, MobileConnectionState, MobileStatus,
-        RadioAccessTechnology, RadioBand, ServingCell, SimState,
+        CarrierBandwidth, ComponentCarrier, ComponentCarrierId, MobileConnectionState,
+        MobileStatus, RadioAccessTechnology, RadioBand, ServingCell, SimState,
     };
+
+    #[test]
+    fn component_carrier_ids_parse_as_ordered_positive_numbers() {
+        let status: MobileStatus = serde_json::from_str(
+            r#"{"carrier":{"10":{"band":"10"},"2":{"band":"2"},"1":{"band":"1"}}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(ComponentCarrierId::PRIMARY.get(), 1);
+        assert_eq!(
+            status
+                .reported_carriers
+                .keys()
+                .map(|id| id.get())
+                .collect::<Vec<_>>(),
+            [1, 2, 10]
+        );
+        assert!(serde_json::from_str::<MobileStatus>(r#"{"carrier":{"0":{}}}"#).is_err());
+    }
+
+    #[test]
+    fn component_carrier_detects_only_shared_identity_conflicts() {
+        let primary: ComponentCarrier =
+            serde_json::from_str(r#"{"band":"7","earfcn":3048,"phy-cell-id":"56"}"#).unwrap();
+        let same: ComponentCarrier =
+            serde_json::from_str(r#"{"band":"7","earfcn":3048,"phy-cell-id":"56"}"#).unwrap();
+        let missing: ComponentCarrier = serde_json::from_str(r#"{"band":"7"}"#).unwrap();
+        assert!(!primary.has_radio_identity_conflict(&same));
+        assert!(!primary.has_radio_identity_conflict(&missing));
+
+        for conflicting in [
+            r#"{"band":"3","earfcn":3048,"phy-cell-id":"56"}"#,
+            r#"{"band":"7","earfcn":3050,"phy-cell-id":"56"}"#,
+            r#"{"band":"7","earfcn":3048,"phy-cell-id":"57"}"#,
+        ] {
+            let conflicting: ComponentCarrier = serde_json::from_str(conflicting).unwrap();
+            assert!(primary.has_radio_identity_conflict(&conflicting));
+        }
+    }
 
     #[test]
     fn mobile_status_parses_known_unknown_and_empty_connection_states() {

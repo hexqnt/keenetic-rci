@@ -1505,7 +1505,7 @@ async fn typed_lte_interface_uses_the_verified_json_command() {
         reply.interface().status().signal.rsrp.map(Dbm::get),
         Some(-79.0)
     );
-    assert_eq!(reply.interface().status().reported_carriers.len(), 1);
+    assert_eq!(reply.interface().status().reported_carriers.len(), 2);
     assert_eq!(requests.load(Ordering::SeqCst), 1);
 }
 
