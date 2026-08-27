@@ -249,6 +249,15 @@ impl MobileInterface {
         &self.status
     }
 
+    /// Returns the 28-bit E-UTRAN Cell Identity derived from the serving cell.
+    ///
+    /// Returns `None` when either identifier is unavailable or does not fit the
+    /// standard 20-bit eNodeB ID and 8-bit sector ID layout.
+    #[must_use]
+    pub const fn eci(&self) -> Option<u32> {
+        self.status.eci()
+    }
+
     /// Consumes the value into its common and LTE-specific parts.
     #[must_use]
     pub fn into_parts(self) -> (Interface, MobileStatus) {
@@ -519,6 +528,17 @@ pub struct MobileStatus {
     pub sim: Option<LteSim>,
 }
 
+impl MobileStatus {
+    /// Returns the 28-bit E-UTRAN Cell Identity derived from the serving cell.
+    ///
+    /// Returns `None` when either identifier is unavailable or does not fit the
+    /// standard 20-bit eNodeB ID and 8-bit sector ID layout.
+    #[must_use]
+    pub const fn eci(&self) -> Option<u32> {
+        self.cell.eci()
+    }
+}
+
 /// LTE signal measurements.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[non_exhaustive]
@@ -556,6 +576,23 @@ pub struct ServingCell {
     /// Tracking area code.
     #[serde(default, deserialize_with = "optional_from_str")]
     pub tac: Option<u32>,
+}
+
+impl ServingCell {
+    /// Returns the 28-bit E-UTRAN Cell Identity (ECI).
+    ///
+    /// The value is composed as `(eNB ID << 8) | sector ID`. Returns `None`
+    /// when either identifier is unavailable or does not fit the standard
+    /// 20-bit eNodeB ID and 8-bit sector ID layout.
+    #[must_use]
+    pub const fn eci(&self) -> Option<u32> {
+        match (self.enb_id, self.sector_id) {
+            (Some(enb_id), Some(sector_id)) if enb_id <= 0x000f_ffff && sector_id <= 0x00ff => {
+                Some((enb_id << 8) | sector_id as u32)
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Parameters for a primary or additional LTE component carrier.
@@ -618,7 +655,7 @@ pub struct LteSim {
 mod tests {
     use super::{
         CarrierBandwidth, ComponentCarrier, MobileConnectionState, MobileStatus,
-        RadioAccessTechnology, RadioBand, SimState,
+        RadioAccessTechnology, RadioBand, ServingCell, SimState,
     };
 
     #[test]
@@ -724,6 +761,39 @@ mod tests {
         assert_eq!(status.cell.sector_id, Some(1));
         assert_eq!(status.cell.tac, Some(20_001));
         assert_eq!(status.primary_carrier.physical_cell_id, Some(101));
+    }
+
+    #[test]
+    fn calculates_eutran_cell_identity() {
+        let cell = ServingCell {
+            enb_id: Some(780_614),
+            sector_id: Some(101),
+            ..ServingCell::default()
+        };
+        assert_eq!(cell.eci(), Some(199_837_285));
+
+        let status = MobileStatus {
+            cell,
+            ..MobileStatus::default()
+        };
+        assert_eq!(status.eci(), Some(199_837_285));
+    }
+
+    #[test]
+    fn eci_requires_complete_standard_width_identifiers() {
+        let mut cell = ServingCell {
+            enb_id: Some(780_614),
+            sector_id: None,
+            ..ServingCell::default()
+        };
+        assert_eq!(cell.eci(), None);
+
+        cell.sector_id = Some(256);
+        assert_eq!(cell.eci(), None);
+
+        cell.sector_id = Some(101);
+        cell.enb_id = Some(0x0010_0000);
+        assert_eq!(cell.eci(), None);
     }
 
     #[test]
