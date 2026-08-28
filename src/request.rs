@@ -24,13 +24,14 @@ pub use network_test::{
 };
 
 pub(crate) mod private {
+    use bytes::Bytes;
     use serde::Serialize;
 
     use super::ShowInterfaceStat;
 
     pub enum Mode {
         Get,
-        PostJson(Vec<u8>),
+        PostJson(Bytes),
     }
 
     pub trait Sealed {
@@ -38,7 +39,7 @@ pub(crate) mod private {
 
         fn method(&self) -> reqwest::Method;
 
-        fn mode(&self) -> Result<Mode, serde_json::Error>;
+        fn mode(&self) -> Mode;
 
         fn query(&self) -> Option<(&'static str, &str)> {
             None
@@ -55,7 +56,7 @@ pub(crate) mod private {
             T::method(self)
         }
 
-        fn mode(&self) -> Result<Mode, serde_json::Error> {
+        fn mode(&self) -> Mode {
             T::mode(self)
         }
 
@@ -71,8 +72,8 @@ pub(crate) mod private {
             reqwest::Method::GET
         }
 
-        fn mode(&self) -> Result<Mode, serde_json::Error> {
-            Ok(Mode::Get)
+        fn mode(&self) -> Mode {
+            Mode::Get
         }
 
         fn query(&self) -> Option<(&'static str, &str)> {
@@ -88,7 +89,7 @@ pub(crate) mod private {
         }
     }
 
-    pub(super) fn show_interface_mode(name: &str) -> Result<Mode, serde_json::Error> {
+    pub(super) fn show_interface_body(name: &str) -> Bytes {
         #[derive(Serialize)]
         struct Command<'a> {
             show: Show<'a>,
@@ -109,7 +110,8 @@ pub(crate) mod private {
                 interface: Interface { name },
             },
         })
-        .map(Mode::PostJson)
+        .expect("serializing an interface command to memory cannot fail")
+        .into()
     }
 }
 
@@ -129,8 +131,8 @@ macro_rules! get_requests {
                     reqwest::Method::GET
                 }
 
-                fn mode(&self) -> Result<private::Mode, serde_json::Error> {
-                    Ok(private::Mode::Get)
+                fn mode(&self) -> private::Mode {
+                    private::Mode::Get
                 }
             }
 
@@ -208,6 +210,7 @@ macro_rules! interface_request {
         #[derive(Clone, Debug, Eq, PartialEq)]
         pub struct $request {
             name: InterfaceId,
+            body: bytes::Bytes,
         }
 
         impl $request {
@@ -223,8 +226,9 @@ macro_rules! interface_request {
 
             /// Creates a request from an already validated interface identifier.
             #[must_use]
-            pub const fn from_id(name: InterfaceId) -> Self {
-                Self { name }
+            pub fn from_id(name: InterfaceId) -> Self {
+                let body = private::show_interface_body(name.as_str());
+                Self { name, body }
             }
 
             /// Returns the requested interface name.
@@ -247,8 +251,8 @@ macro_rules! interface_request {
                 reqwest::Method::POST
             }
 
-            fn mode(&self) -> Result<private::Mode, serde_json::Error> {
-                private::show_interface_mode(self.name.as_str())
+            fn mode(&self) -> private::Mode {
+                private::Mode::PostJson(self.body.clone())
             }
         }
 
@@ -294,8 +298,8 @@ interface_request!(
 ///
 /// This trait cannot be implemented outside this crate. Use the raw methods on
 /// [`crate::KeeneticClient`] for endpoints without a typed request.
-/// Shared references also implement this trait, allowing a prepared request to
-/// be reused without cloning its validated input.
+/// Shared references also implement this trait, allowing a prepared request and
+/// its cached JSON body to be reused.
 pub trait RciRequest: private::Sealed {
     /// Typed response returned by the endpoint.
     type Response: DeserializeOwned;
@@ -325,7 +329,7 @@ mod tests {
     fn interface_names_share_the_json_command_shape() {
         for name in ["Bridge0", "WifiMaster0/AccessPoint0"] {
             let request = ShowInterface::new(name).unwrap();
-            let Ok(Mode::PostJson(body)) = request.mode() else {
+            let Mode::PostJson(body) = request.mode() else {
                 panic!("unexpected request mode");
             };
             let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
@@ -336,13 +340,18 @@ mod tests {
         }
 
         let request = ShowLteInterface::new("UsbLte0").unwrap();
-        let Ok(Mode::PostJson(body)) = request.mode() else {
+        let Mode::PostJson(body) = request.mode() else {
             panic!("unexpected request mode");
         };
         assert_eq!(
             serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
             serde_json::json!({"show":{"interface":{"name":"UsbLte0"}}})
         );
+
+        let Mode::PostJson(reused_body) = request.mode() else {
+            panic!("unexpected request mode");
+        };
+        assert_eq!(body.as_ptr(), reused_body.as_ptr());
 
         let id: InterfaceId = "WifiMaster0/AccessPoint0".parse().unwrap();
         let request = ShowInterfaceStat::from(id);

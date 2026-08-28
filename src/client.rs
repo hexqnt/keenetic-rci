@@ -128,15 +128,19 @@ impl KeeneticClientBuilder {
                 .as_deref()
                 .ok_or(ConfigError::MissingBaseUrl)?,
         )?;
-        let http = match self.http_client {
-            Some(client) => client,
-            None => reqwest::Client::builder()
-                .redirect(Policy::none())
-                .retry(retry::never())
-                .no_proxy()
-                .connect_timeout(self.connect_timeout)
-                .build()
-                .map_err(|source| ConfigError::HttpClient(Arc::new(source)))?,
+        let (http, request_timeout_per_request) = match self.http_client {
+            Some(client) => (client, true),
+            None => (
+                reqwest::Client::builder()
+                    .redirect(Policy::none())
+                    .retry(retry::never())
+                    .no_proxy()
+                    .connect_timeout(self.connect_timeout)
+                    .timeout(self.request_timeout)
+                    .build()
+                    .map_err(|source| ConfigError::HttpClient(Arc::new(source)))?,
+                false,
+            ),
         };
 
         Ok(KeeneticClient {
@@ -146,6 +150,7 @@ impl KeeneticClientBuilder {
                 credentials: self.credentials,
                 cookies: Jar::default(),
                 request_timeout: self.request_timeout,
+                request_timeout_per_request,
                 auth_generation: AtomicU64::new(0),
                 auth: Mutex::new(AuthState::default()),
             }),
@@ -187,19 +192,14 @@ impl KeeneticClient {
     ///
     /// # Errors
     ///
-    /// Returns [`Error`] for serialization, transport, authentication, HTTP,
-    /// RCI-status, JSON syntax, or response-model failures.
+    /// Returns [`Error`] for transport, authentication, HTTP, RCI-status, JSON
+    /// syntax, or response-model failures.
     pub async fn execute<R>(&self, request: R) -> Result<R::Response, Error>
     where
         R: RciRequest,
     {
         let query = request.query();
-        let prepared = match request.mode().map_err(|source| {
-            Error::from(JsonSerializationError::new(
-                Inner::rci_context(request.method(), R::ENDPOINT),
-                source,
-            ))
-        })? {
+        let prepared = match request.mode() {
             Mode::Get => match query {
                 Some((key, value)) => self.inner.prepare_rci_get_pair(R::ENDPOINT, key, value),
                 None => self.inner.prepare_rci_get(R::ENDPOINT, None),
@@ -685,6 +685,7 @@ struct Inner {
     credentials: Option<Credentials>,
     cookies: Jar,
     request_timeout: Duration,
+    request_timeout_per_request: bool,
     auth_generation: AtomicU64,
     auth: Mutex<AuthState>,
 }
@@ -719,11 +720,11 @@ impl Inner {
         }
     }
 
-    fn prepare_rci_post(&self, body: Vec<u8>) -> PreparedRequest {
+    fn prepare_rci_post(&self, body: impl Into<Bytes>) -> PreparedRequest {
         self.prepare_rci_post_at("", body)
     }
 
-    fn prepare_rci_post_at(&self, path: &str, body: Vec<u8>) -> PreparedRequest {
+    fn prepare_rci_post_at(&self, path: &str, body: impl Into<Bytes>) -> PreparedRequest {
         let endpoint = endpoint("rci", path);
         let url = self.endpoint_url(&endpoint);
         PreparedRequest {
@@ -857,8 +858,10 @@ impl Inner {
     async fn send_once(&self, request: &PreparedRequest) -> Result<Response, Error> {
         let mut builder = self
             .http
-            .request(request.context.method().clone(), request.url.clone())
-            .timeout(self.request_timeout);
+            .request(request.context.method().clone(), request.url.clone());
+        if self.request_timeout_per_request {
+            builder = builder.timeout(self.request_timeout);
+        }
         if let Some(cookie) = self.cookies.cookies(&request.url) {
             builder = builder.header(COOKIE, cookie);
         }
@@ -927,11 +930,59 @@ where
 }
 
 fn needs_rci_inspection(bytes: &[u8]) -> bool {
-    // An escape forces inspection because either `status` or `error` may use
-    // JSON Unicode escapes and therefore be absent from the raw byte stream.
-    let has_error = memchr::memmem::find(bytes, br#""error""#).is_some();
-    (has_error && memchr::memmem::find(bytes, br#""status""#).is_some())
-        || memchr::memchr(b'\\', bytes).is_some()
+    // Modem fields commonly contain escaped newlines. Match exact JSON string
+    // tokens so unrelated escapes stay on the direct typed-decoding path.
+    contains_json_string(bytes, b"status", br#""status""#)
+        && contains_json_string(bytes, b"error", br#""error""#)
+}
+
+fn contains_json_string(bytes: &[u8], expected: &[u8], literal: &[u8]) -> bool {
+    if memchr::memmem::find(bytes, literal).is_some() {
+        return true;
+    }
+    if memchr::memchr(b'\\', bytes).is_none() {
+        return false;
+    }
+
+    let mut remaining = bytes;
+    while let Some(quote) = memchr::memchr(b'"', remaining) {
+        remaining = &remaining[quote + 1..];
+        if json_string_matches(remaining, expected) {
+            return true;
+        }
+    }
+    false
+}
+
+fn json_string_matches(mut bytes: &[u8], expected: &[u8]) -> bool {
+    for &expected_byte in expected {
+        if bytes.first() == Some(&expected_byte) {
+            bytes = &bytes[1..];
+            continue;
+        }
+        let Some(digits) = bytes.strip_prefix(br"\u").and_then(|bytes| bytes.get(..4)) else {
+            return false;
+        };
+        let Some(decoded) = digits.iter().try_fold(0_u16, |value, &digit| {
+            json_hex_value(digit).map(|digit| (value << 4) | digit)
+        }) else {
+            return false;
+        };
+        if decoded != u16::from(expected_byte) {
+            return false;
+        }
+        bytes = &bytes[6..];
+    }
+    bytes.first() == Some(&b'"')
+}
+
+const fn json_hex_value(byte: u8) -> Option<u16> {
+    match byte {
+        b'0'..=b'9' => Some((byte - b'0') as u16),
+        b'a'..=b'f' => Some((byte - b'a' + 10) as u16),
+        b'A'..=b'F' => Some((byte - b'A' + 10) as u16),
+        _ => None,
+    }
 }
 
 fn normalize_base_url(value: &str) -> Result<Url, ConfigError> {
@@ -1086,11 +1137,17 @@ mod tests {
     #[test]
     fn rci_prefilter_detects_literal_and_potentially_escaped_errors() {
         assert!(needs_rci_inspection(br#"{"status":[{"status":"error"}]}"#));
-        assert!(needs_rci_inspection(br#"{"status":"\u0065rror"}"#));
+        assert!(needs_rci_inspection(
+            br#"{"sta\u0074us":[{"status":"\u0065rror"}]}"#
+        ));
         assert!(!needs_rci_inspection(br#"{"result":"error"}"#));
         assert!(!needs_rci_inspection(
             br#"{"message":"no error was reported"}"#
         ));
+        assert!(!needs_rci_inspection(
+            br#"{"revision":"first\r\nsecond","status":"message"}"#
+        ));
+        assert!(!needs_rci_inspection(br#"{"status":"errorish"}"#));
     }
 
     #[test]
