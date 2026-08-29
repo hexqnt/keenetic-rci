@@ -1,6 +1,6 @@
 # keenetic-rci
 
-[English](./README.md) · [Русский](./README.ru.md)
+[🇺🇸 English](./README.md) · [🇷🇺 Русский](./README.ru.md)
 
 [![CI](https://github.com/hexqnt/keenetic-rci/actions/workflows/ci.yml/badge.svg)](https://github.com/hexqnt/keenetic-rci/actions/workflows/ci.yml) [![crates.io](https://img.shields.io/crates/v/keenetic-rci.svg)](https://crates.io/crates/keenetic-rci) [![docs.rs](https://img.shields.io/docsrs/keenetic-rci)](https://docs.rs/keenetic-rci)
 
