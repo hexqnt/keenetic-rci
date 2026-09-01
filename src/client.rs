@@ -913,20 +913,33 @@ where
         if !entries.is_empty() {
             return Err(RciError::new(context.clone(), entries).into());
         }
-        return serde_json::from_value(value)
-            .map_err(|source| ResponseDeserializationError::new(context.clone(), source).into());
+        return serde_path_to_error::deserialize(value)
+            .map_err(|error| classify_response_error(context, error));
     }
 
-    serde_json::from_slice(bytes).map_err(|source| match source.classify() {
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    let response = serde_path_to_error::deserialize(&mut deserializer)
+        .map_err(|error| classify_response_error(context, error))?;
+    deserializer
+        .end()
+        .map_err(|source| ResponseJsonError::new(context.clone(), source))?;
+    Ok(response)
+}
+
+fn classify_response_error(
+    context: &RequestContext,
+    error: serde_path_to_error::Error<serde_json::Error>,
+) -> Error {
+    match error.inner().classify() {
         serde_json::error::Category::Data => {
-            ResponseDeserializationError::new(context.clone(), source).into()
+            ResponseDeserializationError::new(context.clone(), error).into()
         }
         serde_json::error::Category::Io
         | serde_json::error::Category::Syntax
         | serde_json::error::Category::Eof => {
-            ResponseJsonError::new(context.clone(), source).into()
+            ResponseJsonError::new(context.clone(), error.into_inner()).into()
         }
-    })
+    }
 }
 
 fn needs_rci_inspection(bytes: &[u8]) -> bool {
@@ -1088,10 +1101,13 @@ fn collect_rci_errors(value: &Value, entries: &mut Vec<RciStatusEntry>) {
 mod tests {
     use std::time::Duration;
 
-    use reqwest::StatusCode;
+    use reqwest::{Method, StatusCode};
 
-    use super::{KeeneticClient, needs_rci_inspection, parse_challenge};
-    use crate::{AuthenticationError, ConfigError, MalformedAuthReason};
+    use super::{KeeneticClient, decode_json_response, needs_rci_inspection, parse_challenge};
+    use crate::{
+        AuthenticationError, ConfigError, Error, MalformedAuthReason, RequestContext,
+        ShowInterfaceReply,
+    };
 
     #[test]
     fn validates_and_normalizes_origins_without_io() {
@@ -1148,6 +1164,24 @@ mod tests {
             br#"{"revision":"first\r\nsecond","status":"message"}"#
         ));
         assert!(!needs_rci_inspection(br#"{"status":"errorish"}"#));
+    }
+
+    #[test]
+    fn response_model_error_reports_nested_json_path_without_body() {
+        let context = RequestContext::new(Method::POST, "/rci/");
+        for body in [
+            br#"{"show":{"interface":{"summary":{"layer":{"conf":8675309}}}}}"#.as_slice(),
+            br#"{"status":"message","error":false,"show":{"interface":{"summary":{"layer":{"conf":8675309}}}}}"#
+                .as_slice(),
+        ] {
+            let error = decode_json_response::<ShowInterfaceReply>(body, &context).unwrap_err();
+            let Error::ResponseDeserialization(error) = error else {
+                panic!("unexpected error: {error}");
+            };
+
+            assert_eq!(error.path(), "show.interface.summary.layer.conf");
+            assert!(!format!("{error:?} {error}").contains("8675309"));
+        }
     }
 
     #[test]

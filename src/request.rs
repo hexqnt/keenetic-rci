@@ -37,8 +37,6 @@ pub(crate) mod private {
     pub trait Sealed {
         const ENDPOINT: &'static str;
 
-        fn method(&self) -> reqwest::Method;
-
         fn mode(&self) -> Mode;
 
         fn query(&self) -> Option<(&'static str, &str)> {
@@ -52,10 +50,6 @@ pub(crate) mod private {
     {
         const ENDPOINT: &'static str = T::ENDPOINT;
 
-        fn method(&self) -> reqwest::Method {
-            T::method(self)
-        }
-
         fn mode(&self) -> Mode {
             T::mode(self)
         }
@@ -67,10 +61,6 @@ pub(crate) mod private {
 
     impl Sealed for ShowInterfaceStat {
         const ENDPOINT: &'static str = "show/interface/stat";
-
-        fn method(&self) -> reqwest::Method {
-            reqwest::Method::GET
-        }
 
         fn mode(&self) -> Mode {
             Mode::Get
@@ -126,10 +116,6 @@ macro_rules! get_requests {
 
             impl private::Sealed for $request {
                 const ENDPOINT: &'static str = $endpoint;
-
-                fn method(&self) -> reqwest::Method {
-                    reqwest::Method::GET
-                }
 
                 fn mode(&self) -> private::Mode {
                     private::Mode::Get
@@ -246,10 +232,6 @@ macro_rules! interface_request {
 
         impl private::Sealed for $request {
             const ENDPOINT: &'static str = "";
-
-            fn method(&self) -> reqwest::Method {
-                reqwest::Method::POST
-            }
 
             fn mode(&self) -> private::Mode {
                 private::Mode::PostJson(self.body.clone())

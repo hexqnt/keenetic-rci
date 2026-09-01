@@ -35,18 +35,19 @@ pub use model::hardware_id::{
     ParseHardwareModelError, ParseHardwareVendorError,
 };
 pub use model::iccid::{Iccid, MAX_ICCID_LENGTH, MIN_ICCID_LENGTH, ParseIccidError};
-pub use model::imei::{Imei, ParseImeiError};
+pub use model::imei::{IMEI_LENGTH, Imei, ParseImeiError};
 pub use model::imsi::{Imsi, MAX_IMSI_LENGTH, MIN_IMSI_LENGTH, ParseImsiError};
-pub use model::plmn::{ParsePlmnError, Plmn};
+pub use model::plmn::{MAX_PLMN_LENGTH, MIN_PLMN_LENGTH, ParsePlmnError, Plmn};
 pub use model::reported::Reported;
 pub use model::version::{
     Architecture, FirmwareChannel, HARDWARE_VERSION_LENGTH, HardwareType, HardwareVersion,
     ParseHardwareVersionError, ParseRegionCodeError, REGION_CODE_LENGTH, RegionCode,
 };
 pub use model::{
-    Interface, InterfaceKind, InterfaceLayerSummary, InterfaceState, InterfaceSummary,
-    InterfaceTrait, Interfaces, InternetStatus, LinkState, ShowInterfaceReply, ShowInterfaceResult,
-    ShowLteInterfaceReply, ShowLteInterfaceResult, Version, VersionBuild, VersionCapabilities,
+    Interface, InterfaceKind, InterfaceLayerState, InterfaceLayerSummary, InterfaceState,
+    InterfaceSummary, InterfaceTrait, Interfaces, InternetStatus, LinkState, ShowInterfaceReply,
+    ShowInterfaceResult, ShowLteInterfaceReply, ShowLteInterfaceResult, Version, VersionBuild,
+    VersionCapabilities,
     mobile::CarrierBandwidth,
     mobile::ComponentCarrier,
     mobile::ComponentCarrierId,
@@ -111,6 +112,6 @@ mod auth;
 mod cli;
 mod client;
 mod error;
-mod model;
+pub mod model;
 mod path;
 pub mod request;

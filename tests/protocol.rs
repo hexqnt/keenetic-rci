@@ -1083,7 +1083,10 @@ async fn response_pipeline_separates_http_json_rci_and_model_errors() {
         .get::<RequiredReply>(&raw_path("wrong-shape"))
         .await
         .unwrap_err();
-    assert!(matches!(model, Error::ResponseDeserialization(_)));
+    let Error::ResponseDeserialization(ref error) = model else {
+        panic!("unexpected error: {model}");
+    };
+    assert_eq!(error.path(), "required");
     assert!(!format!("{model:?} {model}").contains(sensitive));
     assert_eq!(
         client.get_text(&raw_path("text")).await.unwrap(),

@@ -355,17 +355,24 @@ impl fmt::Debug for ResponseJsonError {
 
 /// Valid JSON did not match the requested response type.
 #[derive(Clone, Error)]
-#[error("JSON response from {context} does not match the requested type")]
+#[error("JSON response from {context} does not match the requested type at JSON path `{path}`")]
 pub struct ResponseDeserializationError {
     context: RequestContext,
+    path: Arc<str>,
     #[source]
     source: Arc<serde_json::Error>,
 }
 
 impl ResponseDeserializationError {
-    pub(crate) fn new(context: RequestContext, source: serde_json::Error) -> Self {
+    pub(crate) fn new(
+        context: RequestContext,
+        error: serde_path_to_error::Error<serde_json::Error>,
+    ) -> Self {
+        let path = Arc::from(error.path().to_string());
+        let source = error.into_inner();
         Self {
             context,
+            path,
             source: Arc::new(source),
         }
     }
@@ -375,6 +382,15 @@ impl ResponseDeserializationError {
     pub const fn context(&self) -> &RequestContext {
         &self.context
     }
+
+    /// Returns the path to the response value that could not be deserialized.
+    ///
+    /// Object fields are separated by dots, sequence indices use brackets, and
+    /// `.` denotes the response root.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
 }
 
 impl fmt::Debug for ResponseDeserializationError {
@@ -382,6 +398,7 @@ impl fmt::Debug for ResponseDeserializationError {
         formatter
             .debug_struct("ResponseDeserializationError")
             .field("context", &self.context)
+            .field("path", &self.path)
             .finish_non_exhaustive()
     }
 }

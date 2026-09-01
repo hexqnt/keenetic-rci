@@ -1,3 +1,5 @@
+//! Typed response models and validated domain values.
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Deserializer, de};
