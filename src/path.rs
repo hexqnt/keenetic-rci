@@ -195,20 +195,17 @@ fn parse(value: &str, kind: PathKind) -> Result<Box<str>, InvalidPath> {
 }
 
 const fn validate_percent_encoding(value: &str) -> Result<(), &'static str> {
-    let bytes = value.as_bytes();
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' {
-            if index + 2 >= bytes.len()
-                || !bytes[index + 1].is_ascii_hexdigit()
-                || !bytes[index + 2].is_ascii_hexdigit()
+    let mut remaining = value.as_bytes();
+    while let [byte, rest @ ..] = remaining {
+        remaining = match (byte, rest) {
+            (b'%', [high, low, tail @ ..])
+                if high.is_ascii_hexdigit() && low.is_ascii_hexdigit() =>
             {
-                return Err("percent escapes must contain two hexadecimal digits");
+                tail
             }
-            index += 3;
-        } else {
-            index += 1;
-        }
+            (b'%', _) => return Err("percent escapes must contain two hexadecimal digits"),
+            _ => rest,
+        };
     }
     Ok(())
 }
@@ -236,6 +233,12 @@ mod tests {
             "show/%2fversion",
             "show/%5Cversion",
             "show/%00version",
+            "show/%",
+            "show/%2",
+            "show/%2g",
+            "show/%g2",
+            "show/%20%",
+            "show/%ff",
             "show\\version",
             "show?x=1",
             "show#x",

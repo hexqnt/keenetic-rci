@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fmt,
     future::Future,
     sync::{
@@ -710,14 +711,9 @@ impl Inner {
     }
 
     fn prepare_get(&self, namespace: &str, path: &str, query: Option<&str>) -> PreparedRequest {
-        let endpoint = endpoint(namespace, path);
-        let mut url = self.endpoint_url(&endpoint);
-        url.set_query(query);
-        PreparedRequest {
-            context: RequestContext::new(Method::GET, endpoint),
-            url,
-            body: None,
-        }
+        let mut request = self.prepare(Method::GET, endpoint(namespace, path), None);
+        request.url.set_query(query);
+        request
     }
 
     fn prepare_rci_post(&self, body: impl Into<Bytes>) -> PreparedRequest {
@@ -725,33 +721,18 @@ impl Inner {
     }
 
     fn prepare_rci_post_at(&self, path: &str, body: impl Into<Bytes>) -> PreparedRequest {
-        let endpoint = endpoint("rci", path);
-        let url = self.endpoint_url(&endpoint);
-        PreparedRequest {
-            context: RequestContext::new(Method::POST, endpoint),
-            url,
-            body: Some(body.into()),
-        }
+        self.prepare(Method::POST, endpoint("rci", path), Some(body.into()))
     }
 
     fn prepare_rci_delete(&self, path: &str) -> PreparedRequest {
-        let endpoint = endpoint("rci", path);
-        let url = self.endpoint_url(&endpoint);
-        PreparedRequest {
-            context: RequestContext::new(Method::DELETE, endpoint),
-            url,
-            body: None,
-        }
+        self.prepare(Method::DELETE, endpoint("rci", path), None)
     }
 
     async fn send_json<T>(&self, request: PreparedRequest) -> Result<T, Error>
     where
         T: DeserializeOwned,
     {
-        let response = self.send_authenticated(&request).await?;
-        if !response.status().is_success() {
-            return Err(HttpError::new(request.context.clone(), response.status()).into());
-        }
+        let response = self.send_successful(&request).await?;
         let bytes = response
             .bytes()
             .await
@@ -760,14 +741,19 @@ impl Inner {
     }
 
     async fn send_text(&self, request: PreparedRequest) -> Result<String, Error> {
-        let response = self.send_authenticated(&request).await?;
-        if !response.status().is_success() {
-            return Err(HttpError::new(request.context.clone(), response.status()).into());
-        }
-        response
+        self.send_successful(&request)
+            .await?
             .text()
             .await
             .map_err(|source| TransportError::new(request.context, source).into())
+    }
+
+    async fn send_successful(&self, request: &PreparedRequest) -> Result<Response, Error> {
+        let response = self.send_authenticated(request).await?;
+        if !response.status().is_success() {
+            return Err(HttpError::new(request.context.clone(), response.status()).into());
+        }
+        Ok(response)
     }
 
     async fn send_authenticated(&self, request: &PreparedRequest) -> Result<Response, Error> {
@@ -842,11 +828,18 @@ impl Inner {
     }
 
     fn prepare_auth(&self, method: Method, body: Option<Bytes>) -> PreparedRequest {
-        PreparedRequest {
-            context: Self::auth_context(method),
-            url: self.endpoint_url(AUTH_ENDPOINT),
-            body,
-        }
+        self.prepare(method, AUTH_ENDPOINT, body)
+    }
+
+    fn prepare(
+        &self,
+        method: Method,
+        endpoint: impl Into<Cow<'static, str>>,
+        body: Option<Bytes>,
+    ) -> PreparedRequest {
+        let context = RequestContext::new(method, endpoint);
+        let url = self.endpoint_url(context.endpoint());
+        PreparedRequest { context, url, body }
     }
 
     fn endpoint_url(&self, endpoint: &str) -> Url {
@@ -1030,11 +1023,7 @@ fn normalize_base_url(value: &str) -> Result<Url, ConfigError> {
 }
 
 fn endpoint(namespace: &str, path: &str) -> String {
-    if path.is_empty() {
-        format!("/{namespace}/")
-    } else {
-        format!("/{namespace}/{path}")
-    }
+    format!("/{namespace}/{path}")
 }
 
 fn parse_challenge(headers: &HeaderMap) -> Result<(&str, &str), AuthenticationError> {
@@ -1101,7 +1090,7 @@ fn collect_rci_errors(value: &Value, entries: &mut Vec<RciStatusEntry>) {
 mod tests {
     use std::time::Duration;
 
-    use reqwest::{Method, StatusCode};
+    use reqwest::Method;
 
     use super::{KeeneticClient, decode_json_response, needs_rci_inspection, parse_challenge};
     use crate::{
@@ -1200,7 +1189,5 @@ mod tests {
                 MalformedAuthReason::IncompleteHeaders
             ))
         );
-
-        let _ = StatusCode::OK;
     }
 }

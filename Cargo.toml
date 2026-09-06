@@ -22,7 +22,7 @@ include = [
 
 [dependencies]
 bytes = "1.12.1"
-ipnet = { version = "2.12.1", features = ["serde"] }
+ipnet = { version = "2.12.2", features = ["serde"] }
 md-5 = "0.11.0"
 memchr = "2.8.3"
 percent-encoding = "2.3.2"
@@ -48,7 +48,7 @@ criterion = { version = "0.8.2", default-features = false, features = [
     "async_tokio",
     "cargo_bench_support",
 ] }
-toml = "1.1.4"
+toml = "1.1.5"
 tokio = { version = "1.53.1", features = [
     "macros",
     "net",
